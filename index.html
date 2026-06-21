@@ -93,6 +93,30 @@
   .screen{ display:none; }
   .screen.active{ display:block; }
 
+  /* ---------- Navegador de dia (Hoje) ---------- */
+  .day-nav{
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .day-nav button{
+    width:34px; height:34px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--pink);
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .day-nav button:hover:not(:disabled){ background: var(--pink-light); }
+  .day-nav button:disabled{ opacity:.3; cursor:default; }
+  .day-nav .day-label-wrap{ text-align:center; }
+  .day-nav .day-label{ font-family: Georgia, serif; font-weight:700; font-size:15.5px; text-transform:capitalize; }
+  .day-nav .day-sub{ font-size:11px; color: var(--ink-soft); margin-top:2px; }
+
   /* ---------- HOJE: progress ---------- */
   .progress-wrap{ text-align:center; margin-bottom: 18px; }
   .progress-sub{
@@ -153,7 +177,7 @@
   .habit-name{ font-size: 16px; font-weight:600; color: var(--ink); }
   .habit-status{ font-size:11px; color: var(--ink-soft); }
 
-  .time-options{ display:flex; gap:6px; }
+  .time-options{ display:flex; gap:6px; align-items:center; }
   .time-btn{
     border: 1px solid var(--border);
     background: #fbf8fc;
@@ -172,7 +196,18 @@
     border-color: transparent;
     color: #fff;
   }
-  .habit-row.locked .time-btn:not(.selected){ opacity:.3; pointer-events:none; }
+  .clear-btn{
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--ink-soft);
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+    flex: none;
+  }
+  .clear-btn:hover{ color: var(--pink); border-color: var(--pink); }
+  .clear-btn svg{ width:14px; height:14px; }
 
   /* ---------- Resumo de hoje ---------- */
   .summary-card{
@@ -374,6 +409,19 @@
     <!-- ======================= TELA: HOJE ======================= -->
     <div class="screen active" id="screen-hoje">
 
+      <div class="day-nav">
+        <button id="prevDayBtn" aria-label="Dia anterior">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="day-label-wrap">
+          <div class="day-label" id="dayLabel">Hoje</div>
+          <div class="day-sub" id="daySub">--</div>
+        </div>
+        <button id="nextDayBtn" aria-label="Próximo dia">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
       <div class="progress-wrap">
         <div class="progress-sub" id="motivMsg">Que hábito você vai praticar hoje?</div>
         <div class="progress-count"><span id="todayCount">0</span>/4 concluídos</div>
@@ -383,14 +431,14 @@
       <div class="habit-list" id="habitList"></div>
 
       <div class="summary-card">
-        <div class="summary-title">Resumo de hoje</div>
+        <div class="summary-title" id="summaryTitle">Resumo de hoje</div>
         <div class="summary-grid">
           <div class="stat-pill">
             <div class="label">Concluídos</div>
             <div class="value"><span id="todayCount2">0</span> / 4</div>
           </div>
           <div class="stat-pill alt">
-            <div class="label">Minutos hoje</div>
+            <div class="label">Minutos</div>
             <div class="value" id="todayMinutes">0 min</div>
           </div>
         </div>
@@ -491,6 +539,8 @@ const ICONS = {
   devocional: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.2h5.5a2 2 0 0 1 2 2V19a1.8 1.8 0 0 0-1.8-1.6H4z"/><path d="M20 5.2h-5.5a2 2 0 0 0-2 2V19A1.8 1.8 0 0 1 14.3 17.4H20z"/></svg>`
 };
 
+const CLEAR_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+
 const HABITS = [
   { id: "ingles", name: "Inglês", colorClass: "c-purple" },
   { id: "ioga", name: "Ioga", colorClass: "c-pink" },
@@ -504,7 +554,7 @@ const MOTIV_MESSAGES = {
   1: "Já é um ótimo começo!",
   2: "Você está indo muito bem!",
   3: "Continue assim!",
-  4: "Parabéns! Você concluiu todos os hábitos de hoje!"
+  4: "Parabéns! Você concluiu todos os hábitos do dia!"
 };
 
 const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -518,8 +568,14 @@ let records = {};
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
 
+// data selecionada na tela "Início" (começa em hoje, à meia-noite)
+let selectedDate = new Date();
+selectedDate.setHours(0,0,0,0);
+
 function pad(n){ return n.toString().padStart(2,"0"); }
 function dateKey(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function isSameDay(a,b){ return dateKey(a) === dateKey(b); }
+function startOfToday(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
 
 /* ============================================================
    FIREBASE / FALLBACK
@@ -588,21 +644,48 @@ document.getElementById("navHoje").addEventListener("click", () => showScreen("h
 document.getElementById("navDashboard").addEventListener("click", () => { showScreen("dashboard"); renderDashboard(); });
 
 /* ============================================================
-   HOJE: checklist
+   NAVEGAÇÃO DE DIA (tela Início)
    ============================================================ */
-function getTodayRecord(){
-  return records[dateKey(new Date())] || {};
+function changeDay(delta){
+  const next = new Date(selectedDate);
+  next.setDate(next.getDate() + delta);
+  if (next > startOfToday()) return; // não deixa ir para o futuro
+  selectedDate = next;
+  renderHojeScreen();
+}
+document.getElementById("prevDayBtn").addEventListener("click", () => changeDay(-1));
+document.getElementById("nextDayBtn").addEventListener("click", () => changeDay(1));
+
+function renderDayNav(){
+  const today = startOfToday();
+  const label = document.getElementById("dayLabel");
+  const sub = document.getElementById("daySub");
+
+  if (isSameDay(selectedDate, today)){
+    label.textContent = "Hoje";
+  } else {
+    label.textContent = selectedDate.toLocaleDateString("pt-BR", { weekday:"long", day:"2-digit", month:"long" });
+  }
+  sub.textContent = selectedDate.toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" });
+  document.getElementById("nextDayBtn").disabled = isSameDay(selectedDate, today);
+}
+
+/* ============================================================
+   HOJE: checklist (para a data selecionada)
+   ============================================================ */
+function getSelectedRecord(){
+  return records[dateKey(selectedDate)] || {};
 }
 
 function renderHabitList(){
   const list = document.getElementById("habitList");
-  const todayRec = getTodayRecord();
+  const rec = getSelectedRecord();
   list.innerHTML = "";
 
   HABITS.forEach(h => {
-    const done = todayRec.hasOwnProperty(h.id);
+    const done = rec.hasOwnProperty(h.id);
     const row = document.createElement("div");
-    row.className = "habit-row" + (done ? " done locked" : "");
+    row.className = "habit-row" + (done ? " done" : "");
 
     const left = document.createElement("div");
     left.className = "habit-left";
@@ -610,7 +693,7 @@ function renderHabitList(){
       <div class="habit-icon ${h.colorClass}">${ICONS[h.id]}</div>
       <div>
         <div class="habit-name">${h.name}</div>
-        <div class="habit-status">${done ? `Concluído · ${todayRec[h.id]} min` : "Pendente"}</div>
+        <div class="habit-status">${done ? `Concluído · ${rec[h.id]} min` : "Pendente"}</div>
       </div>
     `;
 
@@ -618,12 +701,20 @@ function renderHabitList(){
     timeWrap.className = "time-options";
     TIME_OPTIONS.forEach(min => {
       const btn = document.createElement("button");
-      btn.className = "time-btn" + (done && todayRec[h.id] === min ? " selected" : "");
+      btn.className = "time-btn" + (done && rec[h.id] === min ? " selected" : "");
       btn.textContent = `${min}m`;
-      btn.disabled = done;
-      btn.addEventListener("click", () => completeHabit(h.id, min));
+      btn.addEventListener("click", () => toggleHabit(h.id, min));
       timeWrap.appendChild(btn);
     });
+
+    if (done){
+      const clearBtn = document.createElement("button");
+      clearBtn.className = "clear-btn";
+      clearBtn.title = "Desmarcar";
+      clearBtn.innerHTML = CLEAR_ICON;
+      clearBtn.addEventListener("click", () => unmarkHabit(h.id));
+      timeWrap.appendChild(clearBtn);
+    }
 
     row.appendChild(left);
     row.appendChild(timeWrap);
@@ -631,24 +722,42 @@ function renderHabitList(){
   });
 }
 
-async function completeHabit(habitId, minutes){
-  const key = dateKey(new Date());
-  const todayRec = { ...(records[key] || {}) };
-  if (todayRec.hasOwnProperty(habitId)) return;
-  todayRec[habitId] = minutes;
-  await saveDay(key, todayRec);
-  renderAll();
+async function toggleHabit(habitId, minutes){
+  const key = dateKey(selectedDate);
+  const rec = { ...(records[key] || {}) };
+  if (rec[habitId] === minutes){
+    // clicou de novo no mesmo horário selecionado: desmarca
+    delete rec[habitId];
+  } else {
+    // marca (ou corrige o tempo, se já estava marcado com outro valor)
+    rec[habitId] = minutes;
+  }
+  await saveDay(key, rec);
+  renderHojeScreen();
+}
+
+async function unmarkHabit(habitId){
+  const key = dateKey(selectedDate);
+  const rec = { ...(records[key] || {}) };
+  delete rec[habitId];
+  await saveDay(key, rec);
+  renderHojeScreen();
 }
 
 /* ============================================================
-   HOJE: motivação + resumo
+   HOJE: motivação + resumo (para a data selecionada)
    ============================================================ */
 function renderMotivAndDaily(){
-  const todayRec = getTodayRecord();
-  const count = Object.keys(todayRec).length;
-  const totalMin = Object.values(todayRec).reduce((a,b)=>a+b,0);
+  const rec = getSelectedRecord();
+  const count = Object.keys(rec).length;
+  const totalMin = Object.values(rec).reduce((a,b)=>a+b,0);
+  const isToday = isSameDay(selectedDate, startOfToday());
 
-  document.getElementById("motivMsg").textContent = MOTIV_MESSAGES[count];
+  document.getElementById("motivMsg").textContent = isToday
+    ? MOTIV_MESSAGES[count]
+    : (count === 4 ? MOTIV_MESSAGES[4] : "Marque os hábitos que você praticou neste dia");
+  document.getElementById("summaryTitle").textContent = isToday ? "Resumo de hoje" : "Resumo do dia";
+
   document.getElementById("todayCount").textContent = count;
   document.getElementById("todayCount2").textContent = count;
   document.getElementById("progressFill").style.width = `${(count/4)*100}%`;
@@ -656,12 +765,19 @@ function renderMotivAndDaily(){
 
   const h = Math.floor(totalMin/60), m = totalMin % 60;
   const highlight = document.getElementById("todayHighlight");
+  const subj = isToday ? "Hoje" : "Nesse dia";
   if (totalMin === 0){
-    highlight.textContent = "Hoje você ainda não dedicou tempo ao seu desenvolvimento.";
+    highlight.textContent = `${subj} ainda não foi dedicado tempo ao desenvolvimento.`;
   } else {
     const hourPart = h > 0 ? `${h}h ` : "";
-    highlight.textContent = `Hoje você dedicou ${hourPart}${m}min ao seu desenvolvimento.`;
+    highlight.textContent = `${subj} ${isToday ? "você dedicou" : "foram dedicados"} ${hourPart}${m}min ao desenvolvimento.`;
   }
+}
+
+function renderHojeScreen(){
+  renderDayNav();
+  renderHabitList();
+  renderMotivAndDaily();
 }
 
 /* ============================================================
@@ -801,8 +917,7 @@ document.getElementById("modalOverlay").addEventListener("click", (e) => {
    RENDER GERAL
    ============================================================ */
 function renderAll(){
-  renderHabitList();
-  renderMotivAndDaily();
+  renderHojeScreen();
   renderDashboard();
 }
 
